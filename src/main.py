@@ -4,6 +4,9 @@ import numpy as np
 import SimpleITK as sitk
 import torch.optim as optim
 
+import site
+site.addsitedir("../lib")
+
 import paths
 from utils import get_logger
 from signal_reader import read_signal
