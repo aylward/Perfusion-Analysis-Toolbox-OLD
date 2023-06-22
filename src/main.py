@@ -4,6 +4,9 @@ import numpy as np
 import itk
 import torch.optim as optim
 
+import site
+site.addsitedir("../lib")
+
 import paths
 from utils import get_logger
 from signal_reader import read_signal
@@ -22,7 +25,7 @@ def main():
     config = parse_config()
     logger.info(config)
     
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
 
     # Read and preprocess (brain-region extraction, low-pass filtering) raw signal (size: (slice, row, column, time))
     # For MRP, convert raw signal <= 0 to = 1
