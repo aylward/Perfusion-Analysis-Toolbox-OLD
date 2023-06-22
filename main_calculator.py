@@ -2,7 +2,7 @@ import os
 import torch
 import logging
 import numpy as np
-import SimpleITK as sitk
+import itk
 from tensorboardX import SummaryWriter
 
 import utils
@@ -29,7 +29,7 @@ class MainCalculator:
         self.raw_perf = raw_perf.to(device)
         
         self.config    = config
-        self.sitkinfo  = [origin, spacing, direction, save_path]
+        self.itkinfo  = [origin, spacing, direction, save_path]
         self.device    = device
         self.nS        = self.raw_perf.size(0)
         self.nR        = self.raw_perf.size(1)
@@ -46,9 +46,8 @@ class MainCalculator:
 
         # Implement when need to exclude the scalp and zones from the image adjacent to the outside of the brain
         #Mask = mask.cal(self.raw_perf, self.device) 
-
         # Compute and save absolute CTC
-        CTC = ctc.cal(self.raw_perf, self.sitkinfo, self.config, self.device) # dtype = torch.float
+        CTC = ctc.cal(self.raw_perf, self.itkinfo, self.config, self.device) # dtype = torch.float
 
         # Clustering: obtain AIF, exclude out arteries
         #AIF = aif.cal(CTC, self.config)

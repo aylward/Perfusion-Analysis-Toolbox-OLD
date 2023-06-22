@@ -1,6 +1,6 @@
 import os
 import numpy as np
-import SimpleITK as sitk
+import itk
 import matplotlib.pyplot as plt
 from dipy.core.onetime import auto_attr
 # %matplotlib inline  # remove annotation symbol when works in Jupyter Notebook

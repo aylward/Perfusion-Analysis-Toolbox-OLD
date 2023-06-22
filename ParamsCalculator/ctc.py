@@ -3,7 +3,7 @@ import torch
 import logging
 import numpy as np
 from scipy import signal
-import SimpleITK as sitk
+import itk
 from builtins import object
 
 # Concentration time curve computation
@@ -89,40 +89,17 @@ def ct2ctc(signal, config, device):
 
     return ctc
 
-def cal(raw_perf, sitk_info, config, device):
-
+def cal(raw_perf, itk_info, config, device):
     print('Calculating Concentration Time Curve ...')
     if config.image_type == 'CTP':
         ctc = ct2ctc(raw_perf, config, device) 
-    elif config.image_type == 'MRP':
-        ctc = mr2ctc(raw_perf, config, device)
-    
-    if config.use_filter:
-        print('Use filtered CTC...')
         ctc_raw_nda = ctc.cpu()
         ctc_raw_nda = ctc_raw_nda.numpy()
-        ctc_filtered_nda = np.zeros(ctc_raw_nda.shape)
-        for slice in range(ctc_raw_nda.shape[0]):
-            for row in range(ctc_raw_nda.shape[1]):
-                for col in range(ctc_raw_nda.shape[2]):
-                    ctc_filtered_nda[slice, row, col, :] = signal.medfilt(ctc_raw_nda[slice, row, col, :])
-        # Save pre-filtered CTC as CTC.nii, filtered CTC as CTC_filtered.nii
-        ctc_raw = sitk.GetImageFromArray(ctc_raw_nda, isVector = True)
-        ctc_raw.SetOrigin(sitk_info[0])
-        ctc_raw.SetSpacing(sitk_info[1])
-        ctc_raw.SetDirection(sitk_info[2])
-        ctcname = os.path.join(sitk_info[3], 'CTC.nii')
+        ctc_raw = itk.GetImageFromArray(ctc_raw_nda)
+        ctc_raw.SetOrigin(itk_info[0])
+        ctc_raw.SetSpacing(itk_info[1])
+        ctc_raw.SetDirection(itk_info[2])
+        ctcname = os.path.join(itk_info[3], 'CTC.nii')
         print('  Save calculated ctc as:', os.path.basename(ctcname))
-        sitk.WriteImage(ctc_raw, ctcname) 
-        
-        ctc_filtered = sitk.GetImageFromArray(ctc_filtered_nda, isVector = True)
-        ctc_filtered.SetOrigin(sitk_info[0])
-        ctc_filtered.SetSpacing(sitk_info[1])
-        ctc_filtered.SetDirection(sitk_info[2])
-        ctcname_fil = os.path.join(sitk_info[3], 'CTC_filtered.nii')
-        print('  Save filtered   ctc as:', os.path.basename(ctcname_fil))
-        sitk.WriteImage(ctc_filtered, ctcname_fil) 
-        return torch.tensor(ctc_filtered_nda, device = device, dtype = torch.float, requires_grad = False)
-    else:
-        print('Use non-filtered CTC...')
+        itk.imwrite(ctc_raw, ctcname)
         return ctc

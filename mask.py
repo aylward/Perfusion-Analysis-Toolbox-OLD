@@ -1,6 +1,6 @@
 import os
 import torch
-import SimpleITK as sitk
+import itk
 
 
 def brain_region(RawPerf, device, background = 0):

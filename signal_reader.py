@@ -1,7 +1,7 @@
 import os
 import torch 
 import numpy as np
-import SimpleITK as sitk
+import itk
 import scipy.ndimage as ndimage
 
 from utils import cutoff_percentile
@@ -23,11 +23,14 @@ def read_mrp(FileName, ToTensor = True, BackGround = 0):
     we need to convert signal of those voxels that are negative to 1, avoiding NaN issue when calculate CTC later
     '''
 
-    sig_raw = sitk.ReadImage(FileName)
-    print('  Raw signal image  Size:', sig_raw.GetSize(), 'Width/Height/Depth:', sig_raw.GetWidth(), sig_raw.GetHeight(), sig_raw.GetDepth())
-    print('  Time points:', sig_raw.GetNumberOfComponentsPerPixel())
+    sig_raw = itk.ReadImage(FileName)
+    print('  Raw signal image  Size:', sig_raw.shape, 'Depth/Height/Width:', sig_raw.GetWidth(), sig_raw.GetHeight(), sig_raw.GetDepth())
+    print('  Time points:', sig_raw.shape[0])
+    print('  Time points[3]:', sig_raw.shape[3])
+    
         
-    sig_nda = sitk.GetArrayFromImage(sig_raw) # should be (slice, row, column, time)
+    sig_nda = itk.GetArrayFromImage(sig_raw) # should be (slice, row, column, time)
+    sig_nda = np.transpose(sig_nda, (1, 0, 2, 3))
     sig_nda = sig_nda.astype(float)
     print('  Raw signal array shape:', sig_nda.shape)
 
@@ -45,7 +48,7 @@ def read_mrp(FileName, ToTensor = True, BackGround = 0):
     print('  Resized signal array shape:', sig_resize.shape)
 
     # Save resized signal image as image_resized.nii
-    img_resize = sitk.GetImageFromArray(sig_resize, isVector = True)
+    img_resize = itk.GetImageFromArray(sig_resize, isVector = True)
     img_resize.SetDirection(sig_raw.GetDirection())
     img_resize.SetSpacing(sig_raw.GetSpacing())
     # Be careful about the dimension correspondence (transpose) between sitk image and numpy array
@@ -54,7 +57,7 @@ def read_mrp(FileName, ToTensor = True, BackGround = 0):
     img_resize.SetOrigin(new_origin)
     ResizeFileName = '%s_resized.nii' % FileName[:-4]
     print('  Reized signal image saved as:', os.path.basename(ResizeFileName))
-    sitk.WriteImage(img_resize, ResizeFileName)
+    itk.WriteImage(img_resize, ResizeFileName)
 
     # Convert signal of those voxels that are negative to 1
     sig_resize[sig_resize <= 0] = 1.0
@@ -64,11 +67,11 @@ def read_mrp(FileName, ToTensor = True, BackGround = 0):
     # Save corrected MRP image (.nii) as RawName_corrected.nii
     CrtFileName = '%s_corrected.nii' % ResizeFileName[:-4]
     print('    Corrected MR Perfusion image saved as:', os.path.basename(CrtFileName))
-    sig_img_crt = sitk.GetImageFromArray(sig_resize, isVector = True)
+    sig_img_crt = itk.GetImageFromArray(sig_resize, isVector = True)
     sig_img_crt.SetDirection(img_resize.GetDirection())
     sig_img_crt.SetOrigin(img_resize.GetOrigin())
     sig_img_crt.SetSpacing(img_resize.GetSpacing())
-    sitk.WriteImage(sig_img_crt, CrtFileName)
+    itk.WriteImage(sig_img_crt, CrtFileName)
 
     if ToTensor:
         sig_resize = torch.from_numpy(sig_resize)
@@ -84,14 +87,17 @@ def read_ctp(FileName, ToTensor = True, BrainMask = []):
     we need to convert signal of those voxels that are negative to 1, avoiding NaN issue when calculate CTC later
     '''
 
-    sig_raw = sitk.ReadImage(FileName)
-    print('  Raw signal image  Size:', sig_raw.GetSize(), 'Width/Height/Depth:', sig_raw.GetWidth(), sig_raw.GetHeight(), sig_raw.GetDepth())
-    print('  Time points:', sig_raw.GetNumberOfComponentsPerPixel())
+    sig_raw = itk.imread(FileName)
+    sig_raw_arr = itk.GetArrayFromImage(sig_raw)
+    print('  Raw signal image  Size:', sig_raw_arr.shape)
+    print('  Time points:', sig_raw_arr.shape[0])
         
-    sig_nda = sitk.GetArrayFromImage(sig_raw) # should be (slice, row, column, time)
+    sig_nda = itk.GetArrayFromImage(sig_raw) # should be (slice, row, column, time)
+    #sig_nda = np.transpose(sig_nda, (1, 0, 2, 3))
+    sig_nda = np.transpose(sig_nda, (1, 2, 3, 0))
     sig_nda = sig_nda.astype(float)
-    print('  Raw signal array shape:', sig_nda.shape)
-
+    print('  Raw signal array shape (18,138,138,16):', sig_nda.shape)
+    
     # Crop brain region (for UNC CTP)
     if not len(BrainMask) == 3:
         raise ValueError("Mask list for CTP should have 3 sub-list element, \
@@ -104,55 +110,54 @@ def read_ctp(FileName, ToTensor = True, BrainMask = []):
     
     print('  Extracted brain region:', BrainMask)
     sig_resize = sig_nda[BrainMask[0][0] : BrainMask[0][1], BrainMask[1][0] : BrainMask[1][1], BrainMask[2][0] : BrainMask[2][1], :]
-    print('  Resized signal array shape:', sig_resize.shape)
-
-    # Masked out non-brain region of raw CT perfusion signal image
+    print('  Resized signal array shape (4d):', sig_resize.shape)
+ #   print(sig_resize)
     brain_nda = sig_resize[..., 0]
+    print("Brain nda shape (should be 3d) = ", brain_nda.shape)
     mask = np.zeros(brain_nda.shape)
-    brain = np.where(brain_nda >- 300) # TODO
+    brain = np.where(brain_nda > -900) # Aria - Changed based on arbitrary value
     mask[brain] = 1
     mask = ndimage.binary_fill_holes(mask)
     mask = np.repeat(mask[..., np.newaxis], sig_resize.shape[3], axis = 3)
-
+    
     print('  Masked out non-brain region of raw CT perfusion signal image.')
     sig_masked = mask * sig_resize
-
     # Normalize masked CT over brain region
     CutOff = 2.0
     tmp = cutoff_percentile(sig_masked, mask, CutOff, 100.0 - CutOff)
     sig_masked_normalized = np.copy(sig_masked)
     sig_masked_normalized[mask] = (sig_masked[mask] - tmp[mask].mean()) / tmp[mask].std()
-
     # Save resized signal image as image_resized.nii
-    img_resize = sitk.GetImageFromArray(sig_resize, isVector = True)
+    img_resize = itk.GetImageFromArray(sig_resize)
+    print("Image resize size (3D + vector) = ", itk.size(img_resize))
+    print("Image resize Num Elements (16) = ", img_resize.GetNumberOfComponentsPerPixel())
     img_resize.SetDirection(sig_raw.GetDirection())
     img_resize.SetSpacing(sig_raw.GetSpacing())
     # Be careful about the dimension correspondence (transpose) between sitk image and numpy array
-    new_origin = sig_raw.GetOrigin() + np.array([BrainMask[0][0], BrainMask[1][0], BrainMask[2][0]]) * sig_raw.GetSpacing()
+    new_origin = sig_raw.GetOrigin() + np.array([BrainMask[0][0], BrainMask[1][0], BrainMask[2][0], 0]) * sig_raw.GetSpacing()
     img_resize.SetOrigin(new_origin)
     ResizeFileName = '%s_resized.nii' % FileName[:-4]
     print('  Resized signal image saved as:', os.path.basename(ResizeFileName))
-    sitk.WriteImage(img_resize, ResizeFileName)
+    itk.imwrite(img_resize, ResizeFileName)
 
     # Save masked signal image as image_masked.nii
-    img_masked = sitk.GetImageFromArray(sig_masked, isVector = True)
+    img_masked = itk.GetImageFromArray(sig_masked)
     img_masked.SetOrigin(img_resize.GetOrigin())
     img_masked.SetDirection(img_resize.GetDirection())
     img_masked.SetSpacing(img_resize.GetSpacing())
     MaskedFileName = '%s_masked.nii' % FileName[:-4]
     print('  Masked signal image saved as:', os.path.basename(MaskedFileName))
-    sitk.WriteImage(img_masked, MaskedFileName) 
+    itk.imwrite(img_masked, MaskedFileName) 
     
     # Save normalized signal image as image_normalized.nii
-    img_normalized = sitk.GetImageFromArray(sig_masked_normalized, isVector = True)
+    img_normalized = itk.GetImageFromArray(sig_masked_normalized)
     img_normalized.SetOrigin(img_resize.GetOrigin())
     img_normalized.SetDirection(img_resize.GetDirection())
     img_normalized.SetSpacing(img_resize.GetSpacing())
     NormalizedFileName = '%s_normalized.nii' % FileName[:-4]
     print('  Normalized signal image saved as:', os.path.basename(NormalizedFileName))
-    sitk.WriteImage(img_normalized, NormalizedFileName)
-
-    if ToTensor:
-        sig_masked_normalized = torch.from_numpy(sig_masked_normalized)
+    itk.imwrite(img_normalized, NormalizedFileName)
+    sig_masked_normalized = torch.from_numpy(sig_masked_normalized)
 
     return sig_masked_normalized, img_resize.GetOrigin(), img_resize.GetSpacing(), img_resize.GetDirection()
+

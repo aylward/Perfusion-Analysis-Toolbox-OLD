@@ -1,7 +1,7 @@
 import os, time
 import torch
 import numpy as np
-import SimpleITK as sitk
+import itk
 import torch.optim as optim
 
 import paths
@@ -38,3 +38,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
