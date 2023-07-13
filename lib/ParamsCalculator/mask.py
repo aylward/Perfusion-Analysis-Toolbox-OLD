@@ -3,15 +3,12 @@ import torch
 import logging
 import numpy as np
 from builtins import object
+import itk
 
-# Brain mask computation
 
+def brain_region(RawPerf, device, background = 0):
+	
+	mask = torch.zeros(RawPerf.size(), device = device)
+	mask = torch.where(RawPerf != background, torch.tensor(1), mask)
 
-def cal(raw_perf, device):
-
-    print('Masking raw data ...')
-
-    a
-
-    return mask
-
+	return mask

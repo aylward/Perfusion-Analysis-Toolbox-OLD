@@ -5,6 +5,7 @@ import numpy as np
 from scipy import signal
 import itk
 from builtins import object
+from config import parse_config
 
 # Concentration time curve computation
 
@@ -34,7 +35,7 @@ def mrp_s0(signal, config, device):
     return s0, bat
 
 
-def ctp_s0(signal, config, device):
+def ctp_s0(signal, config = parse_config(), device = torch.device("cpu")):
     '''
     Calculate the CTP bolus arrival time (bat) and corresponding S0: averaged over signals before bat
     return: s0 # (n_slice, n_row, n_column)
@@ -92,9 +93,9 @@ def ct2ctc(signal, config, device):
 def cal(raw_perf, itk_info, config, device):
     print('Calculating Concentration Time Curve ...')
     if config.image_type == 'CTP':
-        ctc = ct2ctc(raw_perf, config, device) 
-        ctc_raw_nda = ctc.cpu()
-        ctc_raw_nda = ctc_raw_nda.numpy()
+        ctc = ct2ctc(raw_perf, config, 'cpu')
+        ctc_raw_nda = ctc
+        print(itk_info[1])
         ctc_raw = itk.GetImageFromArray(ctc_raw_nda)
         ctc_raw.SetOrigin(itk_info[0])
         ctc_raw.SetSpacing(itk_info[1])

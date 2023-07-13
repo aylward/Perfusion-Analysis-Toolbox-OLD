@@ -86,7 +86,7 @@ def load_checkpoint(checkpoint_path, model, optimizer = None):
     if not os.path.exists(checkpoint_path):
         raise IOError(f"Checkpoint '{checkpoint_path}' does not exist")
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cpu')
     state = torch.load(checkpoint_path, map_location = device)
     model.load_state_dict(state['model_state_dict'])
 

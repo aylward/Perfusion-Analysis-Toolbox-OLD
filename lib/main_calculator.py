@@ -7,6 +7,8 @@ from tensorboardX import SummaryWriter
 
 import utils
 import ParamsCalculator.ctc as ctc
+import ParamsCalculator.cbv as cbv
+import ParamsCalculator.cbf as cbf
 import ParamsCalculator.mask as mask
 import ParamsCalculator.aif as aif
 
@@ -24,10 +26,9 @@ class MainCalculator:
             self.logger = utils.get_logger('MainCalculator', level = logging.DEBUG)
         else:
             self.logger = logger
-
         self.logger.info(f"Sending the raw perfusion image to '{device}'")
-        self.raw_perf = raw_perf.to(device)
-        
+        self.raw_perf = raw_perf
+        self.spacing = spacing
         self.config    = config
         self.itkinfo  = [origin, spacing, direction, save_path]
         self.device    = device
@@ -43,13 +44,16 @@ class MainCalculator:
 
 
     def main_cal(self):
-
-        # Implement when need to exclude the scalp and zones from the image adjacent to the outside of the brain
-        #Mask = mask.cal(self.raw_perf, self.device) 
-        # Compute and save absolute CTC
+        mask_for_aif = mask.brain_region(self.raw_perf, self.device)
+        print(self.itkinfo[1])
+        print(self.spacing)
         CTC = ctc.cal(self.raw_perf, self.itkinfo, self.config, self.device) # dtype = torch.float
-
-        # Clustering: obtain AIF, exclude out arteries
-        #AIF = aif.cal(CTC, self.config)
+        AIF = aif.DSC_mri_aif(mask_for_aif, CTC, self.size, self.config, self.device)
+        CBV = cbv.cal(mask_for_aif, CTC, self.size, AIF, self.config, self.device)
+        CBF = cbf.cal(CTC, AIF, mask_for_aif, self.size)
+        print("This is the CTC:", CTC)
+        print("This is the AIF: ", AIF)
+        print("This is the CBV: ", CBV)
+        print("This is the CBF: ", CBF)
 
          
