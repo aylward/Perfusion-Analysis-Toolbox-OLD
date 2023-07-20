@@ -1,7 +1,7 @@
 import os, time
 import torch
 import numpy as np
-import itk
+import SimpleITK as sitk
 import torch.optim as optim
 
 import site
@@ -24,16 +24,16 @@ def main():
     logger = get_logger("Perfusion Parameters Calculation")
     config = parse_config()
     logger.info(config)
+
     
     device = torch.device("cpu")
 
     # Read and preprocess (brain-region extraction, low-pass filtering) raw signal (size: (slice, row, column, time))
     # For MRP, convert raw signal <= 0 to = 1
-    RawPerfImg, origin, spacing, direction = \
-        read_signal(paths.FileName, config.image_type, ToTensor = config.to_tensor, Mask = config.mask) 
-
-    # Calculate perfusino parameters
-    calculator = MainCalculator(RawPerfImg, origin, spacing, direction, config, paths.SaveFolder, device)
+    RawPerfImg, mask, origin, spacing, direction = \
+        read_signal(paths.FileName, paths.MaskName,  ToTensor = config.to_tensor) 
+    # Calculate perfusion parameters
+    calculator = MainCalculator(RawPerfImg, mask, origin, spacing, direction, config, paths.SaveFolder, device)
     calculator.run()
 
 

@@ -1,106 +1,69 @@
-import os
-import torch
-import logging
 import numpy as np
-from scipy import signal
-import itk
-from builtins import object
-from config import parse_config
+import os
 
-# Concentration time curve computation
+def DSC_mri_conc(volumes, mask):
+    S0map, bolus = DSC_ct_S0(volumes, mask)
+    ind = np.where(S0map)
+    conc = np.zeros(volumes.shape)
+    nS = volumes.shape[0]
+    nR = volumes.shape[1]
+    nC = volumes.shape[2]
+    nT = volumes.shape[3]
+    conc_reshaped = conc.ravel()
+    volumes_reshaped = volumes.ravel()
+    for t in range(nT):
+        conc[ind[0], ind[1], ind[2], t] = volumes[ind[0], ind[1], ind[2], t] - S0map[ind[0], ind[1], ind[2]]
+    
+    return np.real(conc)
 
-def mrp_s0(signal, config, device):
-    '''
-    Calculate the MRP bolus arrival time (bat) and corresponding S0: averaged over signals before bat
-    return: s0 # (n_slice, n_row, n_column)
-    '''
-    sig_avg = torch.zeros([signal.size()[3]], device = device, dtype = torch.float, requires_grad = False)
-    for t in range(signal.size()[3]):
-        sig_avg[t] = torch.mean(signal[..., t])
+def DSC_ct_S0(volumes, mask):
+    nSamplesMin = 0
+    nSamplesMax = 29
+    thresh = 0.01
+    nS = volumes.shape[0]
+    nR = volumes.shape[1]
+    nC = volumes.shape[2]
+    nT = volumes.shape[3]
+    sig_avg = np.zeros(nT)
+
+    for t in range(nT):
+        sig_avg[t] = np.nanmean(np.nanmean(np.nanmean(volumes[:, :, :, t])))
+    
+    #thresh = thresh * (np.max(sig_avg) - np.min(sig_avg))
+    mean_signal = np.zeros((nS, nT))
+
+    for s in range(nS):
+        for t in range(nT):
+            mean_signal[s, t] = (np.nanmean(np.nanmean(volumes[s, :, :, t])))
+            
     flag = True
-    bat  = 0
+    start_s = 0
     while flag:
-        s0_avg = torch.mean(sig_avg[:bat + 1])
-        if torch.abs(s0_avg - sig_avg[bat + 1]) / s0_avg < config.mrp_s0_threshold:
-            bat += 1
+        if np.isnan(np.mean(mean_signal[start_s, :])):
+            start_s += 1
         else:
             flag = False
-            bat -= 1
-        if bat == signal.size()[3] - 1:
-            flag = False
-            bat -= 1
-    print('  Bolus arrival time (start from 0):', bat)
-    s0 = torch.mean(signal[..., :bat], dim = 3) # time dimension == 3
-    
-    return s0, bat
+    S0map = np.zeros(volumes.shape[:3])
+    bolus = np.zeros((nS), dtype=int)
+    count = 0
+    for s in range(start_s, nS):
+        ciclo = True
+        pos = nSamplesMin
 
+        while ciclo:
+            count +=1
+            mean_val = np.mean(mean_signal[s, 0:pos+1])
+            if abs((mean_val - mean_signal[s, pos]) / mean_val) < thresh:
+                pos += 1
+            else:
+                ciclo = False
+                pos -= 1
 
-def ctp_s0(signal, config = parse_config(), device = torch.device("cpu")):
-    '''
-    Calculate the CTP bolus arrival time (bat) and corresponding S0: averaged over signals before bat
-    return: s0 # (n_slice, n_row, n_column)
-    '''
-    sig_avg = torch.zeros([signal.size()[3]], device = device, dtype = torch.float, requires_grad = False)
-    for t in range(signal.size()[3]):
-        sig_avg[t] = torch.mean(signal[..., t])
-    threshold = config.ctp_s0_threshold * (torch.max(sig_avg) - torch.min(sig_avg))
-    flag = True
-    bat  = 1
-    while flag:
-        if sig_avg[bat] - sig_avg[bat - 1] >= threshold and sig_avg[bat + 1] > sig_avg[bat]:
-            flag = False
-        else:
-            bat += 1
-        if bat == signal.size()[3]:
-            flag = False
-    print('  Bolus arrival time (start from 0):', bat - 1)
-    s0 = torch.mean(signal[..., :bat], dim = 3) # time dimension == 3
-    
-    return s0, bat
+            if pos == nSamplesMax or pos+1 > len(mean_signal[0, :]):
+                ciclo = False
+                pos -= 1
+        S0map[s, :, :] = mask[s, :, :] * np.mean(volumes[s, :, :, 0:pos], axis=2)
+        bolus[s] = pos
 
+    return S0map, bolus
 
-
-def mr2ctc(signal, config, device):
-
-    # TODO: use mask if needed
-
-    s0, _ = mrp_s0(signal, config, device)
-    ctc = torch.zeros(signal.size(), device = device, dtype = torch.float, requires_grad = False)
-    
-    for t in range(signal.size()[3]):
-        ctc[..., t] = - config.k_mr/config.TE * torch.log(signal[..., t] / s0)
-
-    # Check computed CTC: should have no NaN value
-    if not len(torch.nonzero(torch.isnan(ctc))) == 0:
-        raise ValueError('Computed CTC contains NaN value, check out!')
-
-    return ctc
-
-
-def ct2ctc(signal, config, device):
-
-    s0, _ = ctp_s0(signal, config, device)
-    ctc = torch.zeros(signal.size(), device = device, dtype = torch.float, requires_grad = False)
-    for t in range(signal.size()[3]):
-        ctc[..., t] = config.k_ct * (signal[..., t] - s0)
-
-    # Check computed CTC: should have no NaN value
-    if not len(torch.nonzero(torch.isnan(ctc))) == 0:
-        raise ValueError('Computed CTC contains NaN value, check out!')
-
-    return ctc
-
-def cal(raw_perf, itk_info, config, device):
-    print('Calculating Concentration Time Curve ...')
-    if config.image_type == 'CTP':
-        ctc = ct2ctc(raw_perf, config, 'cpu')
-        ctc_raw_nda = ctc
-        print(itk_info[1])
-        ctc_raw = itk.GetImageFromArray(ctc_raw_nda)
-        ctc_raw.SetOrigin(itk_info[0])
-        ctc_raw.SetSpacing(itk_info[1])
-        ctc_raw.SetDirection(itk_info[2])
-        ctcname = os.path.join(itk_info[3], 'CTC.nii')
-        print('  Save calculated ctc as:', os.path.basename(ctcname))
-        itk.imwrite(ctc_raw, ctcname)
-        return ctc

@@ -27,26 +27,9 @@ def DSC_mri_aif(mask, conc, size, config, device):
     #   is not the one used for concentration calculations, but a restricted version
     #   (the 'fill' function was not used).
     # - options: the struct that contains the method's options. The significant ones are:
-    
     nSlice = 9
-    conc = conc.numpy()
-    conc_reshaped = np.reshape(conc[nSlice, :, :, :], (size[1], size[2], size[3]))
-    conc_reshaped = np.abs(conc_reshaped)
-    aif_old = extract_AIF(conc_reshaped, mask[nSlice, :, :])
-    aif = aif_old
-    sliceAIF = nSlice
-    # b= 5.7400e-004;
-    # a= 0.0076;
-    # r= 0.0440;
-    # TR = 30
-    # nT = 16
-    # time = np.arange(0, nT * TR, TR)
-    # old_conc = conc
-    # conc = (a * old_conc + b * (old_conc ** 2)) / r
-    # plt.plot(time, old_conc)
-    # plt.title('AIF with linear \Delta R_2^* relationship.')
-    # plt.plot(time, conc)
-    # plt.title('AIF with quadratic \Delta R_2^* relationship.')
+    conc_reshaped = conc[nSlice-1, :, :, :]
+    aif= extract_AIF(conc_reshaped, mask[nSlice-1, :, :])
     return aif
 
 
@@ -58,8 +41,8 @@ def extract_AIF(AIFslice, mask):
     # 4) Prepare the output
 
     # Preparation of accessory variables and parameters
-    semiaxisMag = 0.3500
-    semiaxisMin = 0.1500
+    semiaxisMag = 0.2500
+    semiaxisMin = 0.1000
     pArea = 0.4000
     pTTP = 0.4000
     pReg = 0.0500
@@ -71,12 +54,11 @@ def extract_AIF(AIFslice, mask):
     TR = 1.55;  # 1.55s
     nT = 16
     time = np.arange(0, nT * TR, TR)
-    mask = mask.numpy()
     # Extracts the AIF from the provided input slice.
     # 1) Identification of the ROI containing the AIF
     # 1.1) Identification of the mask boundaries
-    print('Brain bound detection')
 
+    print('Brain bound detection')
     # Find minimum and maximum row indices with non-zero elements in the mask
     r = 0
     while True:
@@ -102,7 +84,6 @@ def extract_AIF(AIFslice, mask):
             break
         else:
             c += 1
-
     c = AIFslice.shape[1] - 1
     while True:
         if np.sum(mask[:, c]) != 0:
@@ -111,34 +92,29 @@ def extract_AIF(AIFslice, mask):
         else:
             c -= 1
 
-    hf_mask = plt.figure()
-    plt.imshow(mask[:,:,1])
-    plt.plot([0, nC], [minR, minR], 'g-', [0, nC], [maxR, maxR], 'g-', [minC, minC], [0, nR], 'g-', [maxC, maxC], [0, nR], 'g-')
-    plt.xlabel('Brain bound: rows (' + str(minR) + '-' + str(maxR) + ') - columns(' + str(minC) + '-' + str(maxC) + ')')
-    plt.title('AIF extraction - mask and bounds')
-    plt.xticks([], [])
-    plt.yticks([], [])
-    plt.axis('square')
-
-    
+    print(minR)
+    print(maxR)
+    print(minC)
+    print(maxC)
     print('Definition of the AIF extraction searching area')
-
+    
     center = np.zeros(2)
     center[1] = 0.5 * (minR + maxR)  # Y coordinate of the center (calculated on the rows)
-    center[0] = 0.5 * (minC + maxC)  # X coordinate of the center (calculated on the columns)
+    center[0] = 0.6 * (minC + maxC)  # X coordinate of the center (calculated on the columns)
 
     semiaxisB = semiaxisMag * (maxC - minC)  # The major axis is along the anterior-posterior direction, i.e., left to right in the images
     semiaxisA = semiaxisMin * (maxR - minR)
-
-    ROI = np.zeros((nR, nC, nT))  # Mask containing the voxels of the ROI
+    ROI = np.zeros((nR, nC))  # Mask containing the voxels of the ROI
+    count = 0
     for r in range(nR):
         for c in range(nC):
             if ((r - center[1])**2 / (semiaxisA**2) + (c - center[0])**2 / (semiaxisB**2)) <= 1:
-                ROI[r, c, :] = 1
-    print("This is the current number of 1s before mask is applied", np.sum(np.sum(ROI)))
-    ROI = ROI * mask  # Keep only the voxels in the ROI that are also present in the mask
-    print("This is the current number of 1s after mask is applied", np.sum(np.sum(ROI)))
-    ROIinitial = ROI[:, :, -1]
+                ROI[r, c] = 1
+                count +=1
+    ROI = ROI * mask
+    ROIinitial = ROI
+
+    
     xROI = np.arange(center[0] - semiaxisB, center[0] + semiaxisB, 0.01)
     nL = len(xROI)
     xROI = np.concatenate((xROI, np.zeros(nL)))
@@ -151,28 +127,25 @@ def extract_AIF(AIFslice, mask):
         yROI[nL + k] = -semiaxisA * ((1 - ((xROI[nL + k] - center[0])**2) / (semiaxisB**2))**0.5) + center[1]
     yROI = np.real(yROI)
 
-
-    hf_img_roi = plt.figure()
-    plt.plot(xROI, yROI, 'r')
-    plt.plot(center[0], center[1], 'r+')
-    plt.title('AIF extraction - searching area')
-
   # 2) DECIMATION OF CANDIDATE VOXELS
     print('   Candidate voxel analysis')
 
   # 2.1) Selection based on area under the curve.
     totalCandidates = np.sum(np.sum(ROI))
-    print("Initial number of totalCandidates", totalCandidates)
     totalCandidatesToKeep = np.ceil(totalCandidates * (1 - pArea))
     AUC = np.sum(AIFslice, axis=2)  # Calculate AUC for each voxel.
-    ROI = ROI[:, :, -1]
     AUC *= ROI
-    AUC[np.isinf(AUC)] = 0
+    AUCup =np.max(np.max(AUC))
+    print(AUCup)
+    AUC[np.where(np.isinf(AUC))] = 0
 
     cycle = True
     cycleCount = 0
     AUCdown =np.min(np.min(AUC))
+    print(AUCdown)
+    
     AUCup = np.max(np.max(AUC))
+    print(AUCup)
     while cycle:
         cycleCount += 1
         threshold = 0.5 * (AUCup + AUCdown)
@@ -187,39 +160,19 @@ def extract_AIF(AIFslice, mask):
 
         if ((AUCup - AUCdown) < 0.01) or (cycleCount > 100):
             cycle = False
-    print(threshold)
-    ROIauc = (1 - (AUC > threshold)) 
-    unique, counts = np.unique(ROIauc, return_counts=True)
-    print("ROIauc is:", dict(zip(unique, counts)))
-
     print(' Candidate voxel selection via AUC criteria')
     print('  Voxel initial amount:', totalCandidates)
     print('  Survived voxels:', np.sum(np.sum(ROI)))
 
-
-    for c in range(nC):
-        for r in range(nR):
-            if ROIauc[r, c] == 1:
-                plt.plot(time, np.reshape(AIFslice[r, c, :], (nT, 1)), 'b-')
-
-    for c in range(nC):
-        for r in range(nR):
-            if ROIauc[r, c] == 0:
-                plt.plot(time, np.reshape(AIFslice[r, c, :], (nT, 1)), 'r-')
-
-    plt.gca().set_xlabel('time')
-    plt.gca().set_title('AUC')
-    plt.gca().legend(['Accepted', 'Rejected'])
-    plt.show()
-
     ROI = ROI * (AUC > threshold)
-
     # 2.2) Selection based on TTP
     totalCandidates = np.sum(np.sum(ROI))
     totalCandidatesToKeep = np.ceil(totalCandidates * (1 - pTTP))
     MC, TTP = np.max(AIFslice, axis=2), np.argmax(AIFslice, axis=2)
     TTP = TTP.astype(np.double) 
+    print("This is TTP", np.max(TTP))
     TTP *= ROI
+    print("This is TTP 2", np.max(TTP))
     cycle = True
     threshold = 1
     while cycle:
@@ -228,33 +181,21 @@ def extract_AIF(AIFslice, mask):
         else:
             threshold += 1
 
-    ROIttp = (1 - (TTP < threshold))
     print(' ')
     print(' Candidate voxel selection via TTP criteria')
     print('  Voxel initial amount:', totalCandidates)
     print('  Survived voxels:', np.sum(np.sum(ROI)))
 
-    for c in range(nC):
-        for r in range(nR):
-            if ROIttp[r, c] == 1:
-                plt.plot(time, np.reshape(AIFslice[r, c, :], (nT, 1)), 'b-')
-
-    for c in range(nC):
-        for r in range(nR):
-            if ROIttp[r, c] == 0:
-                plt.plot(time, np.reshape(AIFslice[r, c, :], (nT, 1)), 'r-')
-    plt.gca().set_xlabel('time')
-    plt.gca().set_title('TTP')
-    plt.gca().legend(['Accepted', 'Rejected'])
-    plt.show()
-    print(threshold)
     ROI = ROI * (TTP < threshold)
     #Aria - Code works till here
     
     # 2.3) Selection based on irregularity index
     totalCandidates = np.sum(np.sum(ROI))
     candidatesToKeep = np.ceil(totalCandidates * (1 - pReg))
-    REG = calculateReg(AIFslice, time, ROI)
+    AIF_temp = AIFslice.copy()
+    time_temp = time.copy()
+    ROI_temp = ROI.copy()
+    REG = calculateReg(AIF_temp, time_temp, ROI_temp)
 
     loop = True
     nLoop = 0
@@ -274,41 +215,21 @@ def extract_AIF(AIFslice, mask):
 
         if ((REGup - REGdown) < 0.001) or (nLoop >= 100):
             loop = False
-
-    ROIreg = 2 * ROI - ROI * (REG > threshold)
+    
     print(' ')
     print(' Candidate voxel selection via Ireg criteria')
     print('  Voxel initial amount:', totalCandidates)
     print('  Survived voxels:', np.sum(np.sum(ROI)))
 
-    posCok, posRok = np.where(ROI)
-
     ROI = ROI * (REG > threshold)
-    hf_sel_voxel = plt.figure()
-    plt.subplot(121)
-    posCok, posRok = np.where(ROI)
-    plt.plot(xROI, yROI, 'r')
-    plt.plot(center[0], center[1], 'r+')
-    plt.plot(posRok, posCok, 'r.', markersize=1)
-    plt.title('Candidate voxels')
-    plt.xticks([])
-    plt.yticks([])
-    plt.axis('square')
-    plt.show()
     print('Arterial voxels extraction')
     # 3.1) Preparation of the matrix containing the data
-    ROI_3d = ROI
-    ROI = np.reshape(ROI, (19044))
     data2D = np.zeros((((np.sum(np.sum(ROI))).astype(int)), nT))
-
     ind = np.where(ROI)
 
-    AIFslice = AIFslice.ravel()
-    k = nR * nC
     for t in range(0, nT):
-      data2D[:, t] = AIFslice[ind[0]+k*(t)]
-    
-    maskAIF_raw = ROI_3d
+      data2D[:, t] = AIFslice[ind[0], ind[1], t]
+    maskAIF = ROI
     # 3.2) Applying the Hierarchical Cluster algorithm recursively
     nTrue = 0
     AIFslice = None
@@ -319,7 +240,8 @@ def extract_AIF(AIFslice, mask):
         print('CYCLE N#', nTrue)
 
         # Applying the hierarchical cluster
-        vectorCluster, centroid = clusterHierarchical(data2D, 2)
+        data2D_temp = data2D.copy()
+        vectorCluster, centroid = clusterHierarchical(data2D_temp, 2)
 
         # Comparing the clusters and choosing which one to keep
         MC1, TTP1 = np.max(centroid[0, :]), np.argmax(centroid[0, :])
@@ -328,40 +250,39 @@ def extract_AIF(AIFslice, mask):
         if (((max([MC1, MC2]) - min([MC1, MC2])) / max([MC1, MC2])) < peak_diff) and (TTP1 != TTP2):
             # The difference between the peaks is smaller than the threshold, choose
             # based on TTP
-            clusterChoice = int(TTP2 < TTP1)  # Result is 0 if TTP1 < TTP2 and 1 if TTP2 < TTP1
+            clusterChoice = 1 + int(TTP2 < TTP1)  # Result is 1 if TTP1 < TTP2 and 2 if TTP2 < TTP1
 
             print('  Cluster selected via TTP criteria')
             print('   Selected cluster:', clusterChoice)
 
         else:
             # Choose based on the difference between peaks
-            clusterChoice = int(MC2 > MC1)  # Result is 0 if MC1 > MC2 and 1 if MC2 > MC1
+            clusterChoice = 1+  int(MC2 > MC1)  # Result is 1 if MC1 > MC2 and 2 if MC2 > MC1
             print('  Cluster selected via MC criteria')
             print('   Selected cluster:', clusterChoice)
         if (np.sum(vectorCluster == clusterChoice) < nVoxelMin) and (np.sum(vectorCluster == (3 - clusterChoice)) >= nVoxelMin):
-            # The population of the chosen cluster is less than the minimum number of
+            # The populati        clusterChoice += 1on of the chosen cluster is less than the minimum number of
             # accepted voxels, while the other cluster has enough of them.
             # Choose the other cluster.
-            clusterChoice = 1 - clusterChoice  # Invert the chosen cluster
+            clusterChoice = 3 - clusterChoice  # Invert the chosen cluster
 
             print('  Cluster selected switched because of minimum voxel bound')
             print('   Selected cluster:', clusterChoice)
-
+        
         # Keep only the data related to the chosen cluster
-        voxelChosen = (vectorCluster == clusterChoice)
-        maskAIF = maskAIF_raw
+        voxelChosen = 1 * (vectorCluster == clusterChoice)
         indMask = np.where(maskAIF)
+
         maskAIF[indMask] = voxelChosen
-        indVoxel = np.where(voxelChosen==True)
+        indVoxel = np.where(voxelChosen)
         nL = len(indVoxel[0])
         data2Dold = data2D
         data2D = np.zeros((nL, nT))
         for t in range(nT):
             data2D[:, t] = data2Dold[indVoxel[0], t]
-
         print(' ')
         print(' Resume cycle n#', nTrue)
-        print('  Voxel initial amount:', len(indMask))
+        print('  Voxel initial amount:', len(indMask[0]))
         print('  Survived voxels:', nL)
         print('  Cluster 1: MC', MC1)
         print('             TTP', TTP1)
@@ -370,16 +291,6 @@ def extract_AIF(AIFslice, mask):
         print('             TTP', TTP2)
         print('             voxel', np.sum(vectorCluster == 2))
         print('  Selected cluster:', clusterChoice)
-
-        hf_img_centr = plt.figure()
-        plt.subplot(1, 2, 1)
-        posC, posR = np.where(maskAIF)
-        plt.plot(xROI, yROI, 'r')
-        plt.plot(posR, posC, 'r.', markersize=1)
-        plt.title('Cycle n#' + str(nTrue) + ' - candidate voxels')
-        plt.xticks([])
-        plt.yticks([])
-        plt.axis('square')
 
         # Checking the exit criteria
         if (nL <= nVoxelMax) or (nTrue >= 100):
@@ -391,74 +302,75 @@ def extract_AIF(AIFslice, mask):
     AIF_ROI_ind = np.where(ROI)
     AIF_ROI_x = xROI
     AIF_ROI_y = yROI
-    print("This is the centroid:", centroid)
     # 4.2) Save the position of the selected voxels and the average concentration
-    AIFconc = centroid[clusterChoice, :]  # Concentration samples for the AIF.
-    print(clusterChoice)
-    print("This is AIFconc", AIFconc)
+    AIFconc = centroid[clusterChoice-1, :]  # Concentration samples for the AIF.
     AIF_conc = AIFconc
-    pos = 0
     AIF_voxels = []
     for r in range(nR):
         for c in range(nC):
             if maskAIF[r, c] == 1:
                 AIF_voxels.append([r, c])
-                pos += 1
     AIFvoxels = np.array(AIF_voxels)
     
     # 4.3) Calculate the arterial fit with gamma-variant (with recirculation)
     print('Gamma-variate fit computation')
 
     weights = 0.01 + np.exp(-AIFconc)  # Weights for the fit calculation.
-
     TTP = np.argmax(AIFconc)
     weights[TTP] = weights[TTP] / 10
     weights[TTP - 1] = weights[TTP - 1] / 5
     weights[TTP + 1] = weights[TTP + 1] / 2
-
     p = {'t0': '', 'alpha': '', 'beta': '', 'A': '', 'td': '', 'K': '', 'tao': '', 'ExitFlag': ''}
-
-#    fitParameters_peak1, cv_est_parGV_peak1 = fitGV_peak1(AIFconc, weights)
-    #Aria - Removed condition
-    fitParameters_peak1 = fitGV_peak1(AIFconc, weights)
-    fitParameters_peak2, cv_est_parGV_peak2 = fitGV_peak2(AIFconc, weights, fitParameters_peak1)
-    fitParameters = np.concatenate((fitParameters_peak1[0:4], fitParameters_peak2[0:3]))
-    # cv_est_parGV = np.concatenate((cv_est_parGV_peak1, cv_est_parGV_peak2))
+    nR, nC = data2D.shape
+    AIFconc_temp = AIFconc.copy()
+    weights_temp = weights.copy()
+    fitParameters_peak1 = fitGV_peak1(AIFconc_temp, weights_temp)
+    fitParameters = fitParameters_peak1[0:4]
     TR = 1.55
     nT = 16
     time = np.arange(0, nT * TR, TR)
     AIF_fit = {}
     AIF_fit['weights'] = weights
     AIF_fit['parameters'] = fitParameters
-    # AIF_fit['cv_est_parGV'] = cv_est_parGV
-    AIF_fit['gv'] = GVfunction_peak1(fitParameters)
+    fitParameters_temp = fitParameters.copy()
+    AIF_fit['gv'] = GVfunction_peak1(fitParameters_temp)
     AIF_fit['time'] = time
     AIF_fit['conc'] = AIFconc
-
+    print(AIF_fit['conc'].shape)
+    print(AIF_fit['gv'].shape)
+    print(nL)
     hf_fit_aif_final = plt.figure()
     plt.subplot(1, 2, 2)
-    plt.plot(time, AIF_conc, 'ko', markersize=5)
-    plt.plot(time, AIF_conc, 'ko', markersize=5)
+    plt.plot(time, AIF_fit['conc'], 'bo', markersize=5)
+    plt.plot(time, AIF_fit['gv'], 'k-', linewidth=2)
+    for l in range(nL):
+      plt.plot(time, data2D[l, :], 'r-')
+    plt.plot(time, AIF_fit['conc'], 'bo', markersize=5)
     plt.plot(time, AIF_fit['gv'], 'k-', linewidth=2)
     plt.xlabel('[s]', fontsize=10)
     plt.legend(['AIF samples', 'GV function', 'Arterial voxels'])
     plt.title('AIF', fontsize=12)
-    plt.xlim(0, nT)
+    plt.xlim(time[0], time[-1])
     plt.show()
     print("This is AIF fit:", AIF_fit)
     return AIF_fit
-
 
 def calculateReg(y, x, mask):
     # Calculate the irregularity index of the concentration curve for each voxel.
     # The index is calculated by normalizing the area to 1 in order not to penalize voxels with high areas.
     # The formula used to calculate the index is: CTC = integral((C''(t))^2 dt)
-
+    td = x[1] - x[0]
+    print(td)
     nR, nC, nT = y.shape
     AUC = np.sum(y, axis=2)
-    AUC = AUC + (AUC == 1)
-    y = np.divide(y, np.expand_dims(AUC, axis=2))
+    AUC=AUC+(AUC==1);
+    for t in range(nT):
+      y[:,:,t]=y[:,:,t]/AUC;
 
+    ind = np.where(np.isinf(y))
+    y[ind[0], ind[1], ind[2]] = 0
+    ind = np.where(np.isnan(y))
+    y[ind[0], ind[1], ind[2]] = 0
     # Calculation of the second derivative
     second_derivative = np.zeros((nR, nC, nT))
     for r in range(nR):
@@ -467,19 +379,18 @@ def calculateReg(y, x, mask):
                 for t in range(nT):
                     if (t > 0) and (t < nT - 1):
                         # Standard case
-                        second_derivative[r, c, t] = ((y[r, c, t+1] - y[r, c, t]) / (x[t+1] - x[t])
-                                             - (y[r, c, t] - y[r, c, t-1]) / (x[t] - x[t-1])) / (x[t] - x[t-1])
+                        second_derivative[r, c, t] = ((y[r, c, t+1] - y[r, c, t]) / (td)
+                                             - (y[r, c, t] - y[r, c, t-1]) / (td)) / (td)
                     elif t == 0:
                         # Missing previous sample
-                        second_derivative[r, c, t] = (y[r, c, t+1] - y[r, c, t]) / ((x[t+1] - x[t])**2)
+                        second_derivative[r, c, t] = (y[r, c, t+1] - y[r, c, t]) / ((td)**2)
                     else:
                         # Missing next sample
-                        second_derivative[r, c, t] = (y[r, c, t] - y[r, c, t-1]) / ((x[t] - x[t-1])**2)
+                        second_derivative[r, c, t] = (y[r, c, t] - y[r, c, t-1]) / ((td)**2)
 
     # Calculation of the irregularity index
     second_derivative = second_derivative**2
     REG = trapz(second_derivative, x, axis=2)
-
     return REG
 
 
@@ -530,10 +441,8 @@ def fitGV_peak1(data, weights):
     
     p0 = [t0_init, alpha_init, beta_init, A_init]  # Initial values
     lb = np.array(p0) * 0.1   # Lower bounds
-    print("This is lb", lb)
     ub = np.array(p0) * 10   # Upper bounds
-    print("This is ub", ub)
-    
+
     # Check the data, ensure they are column vectors
     if data.shape[0] == 1:
         data = np.transpose(data)
@@ -553,10 +462,10 @@ def fitGV_peak1(data, weights):
     
     # Adapt the data for "only the first peak"
     data_peak1 = np.zeros_like(data)
-    data_peak1[:i] = data[:i]
+    data_peak1[:i+1] = data[:i+1]
     
     weights_peak1 = 0.01 + np.zeros_like(weights)
-    weights_peak1[:i] = weights[:i]
+    weights_peak1[:i+1] = weights[:i+1]
     
     # Estimator
     p = p0
@@ -566,15 +475,13 @@ def fitGV_peak1(data, weights):
         
         if nTrue >= 4:
             break
-    print("This is the least squares output matrix, ", least_squares_output.x)
     GVparameter = np.transpose(least_squares_output.x)
     J = least_squares_output.jac
-    print("This is the previous jacobian", J)
-    # covp = np.linalg.inv(np.transpose(J) @ J)
-    # var = np.diag(covp)
-    # sd = np.sqrt(var)
-    # cv_est_parGV = (sd / p * 100)
-    
+    covp = np.linalg.inv(np.transpose(J) @ J)
+    var = np.diag(covp)
+    sd = np.sqrt(var)
+    cv_est_parGV = (sd / p * 100)
+
     return GVparameter
 
 
@@ -596,130 +503,175 @@ def GVfunction_peak1(p):
     alpha = p[1]    # alpha
     beta = p[2]    # beta
     A = p[3]    # A
-
+    TR = 1.55;  # 1.55s
     nT = 16
+    time = np.arange(0, nT * TR, TR)
     GV = np.zeros(nT)
     for cont in range(nT):
-        t = cont
+        t = time[cont]
         if t > t0:
             GV[cont] = A * ((t - t0) ** alpha) * np.exp(-(t - t0) / beta)
 
     return GV
 
-def fitGV_peak2(data, weights, cost_peak1):
-    TE = 0.025; # 25ms
-    tr = 1.55;  # 1.55s
-    nT = 16
-    time = np.arange(0, nT * tr, tr)
-    if np.size(time) == 1:
-        time = np.transpose(time)
-    if np.size(data) == 1:
-        data = np.transpose(data)
-    if np.size(weights) == 1:
-        weights = np.transpose(weights)
-    if np.size(cost_peak1) == 1:
-        cost_peak = np.transpose(cost_peak1)
+# def fitGV_peak2(data, weights, cost_peak1):
+#     TE = 0.025; # 25ms
+#     tr = 1.55;  # 1.55s
+#     nT = 16
+#     time = np.arange(0, nT * tr, tr)
+#     if np.size(time) == 1:
+#         time = np.transpose(time)
+#     if np.size(data) == 1:
+#         data = np.transpose(data)
+#     if np.size(weights) == 1:
+#         weights = np.transpose(weights)
+#     if np.size(cost_peak1) == 1:
+#         cost_peak = np.transpose(cost_peak1)
 
-    peak1 = GVfunction_peak1(cost_peak1)
-    data_peak2 = data - peak1
+#     peak1 = GVfunction_peak1(cost_peak1)
+#     data_peak2 = data - peak1
 
-    weights_peak2 = np.ones(len(data_peak2))
-    posTaglioPesi = min([np.where(data > 0.4 * np.max(data))[0][-1], 3 + np.where(data == np.max(data))[0][0]])
-    weights_peak2[:posTaglioPesi] = 1
+#     weights_peak2 = np.ones(len(data_peak2))
+#     posTaglioPesi = min([np.where(data > 0.4 * np.max(data))[0][-1], 3 + np.where(data == np.max(data))[0][0]])
+#     weights_peak2[:posTaglioPesi] = 1
 
-    dati_x_stime_init = data_peak2.copy()
-    dati_x_stime_init[:posTaglioPesi] = 0
-    dati_x_stime_init[np.where(dati_x_stime_init < 0)] = 0
-    maxPeak2, TTPpeak2 = np.max(dati_x_stime_init), np.argmax(dati_x_stime_init)
-    t0peak2 = np.where(dati_x_stime_init[:TTPpeak2] < (0.1 * np.max(dati_x_stime_init)))[0][-1]
-    print(t0peak2)
-    td_init = time[t0peak2] - cost_peak1[0]
-    print("td_init", td_init)
-    tao_init = 40
+#     dati_x_stime_init = data_peak2.copy()
+#     dati_x_stime_init[:posTaglioPesi] = 0
+#     dati_x_stime_init[np.where(dati_x_stime_init < 0)] = 0
+#     maxPeak2, TTPpeak2 = np.max(dati_x_stime_init), np.argmax(dati_x_stime_init)
+#     t0peak2 = np.where(dati_x_stime_init[:TTPpeak2] < (0.1 * np.max(dati_x_stime_init)))[0][-1]
+#     td_init = time[t0peak2] - cost_peak1[0]
+#     tao_init = 40
 
-    ricircolo = GVfunction_ricircolo(np.concatenate((cost_peak1, [td_init, 1, tao_init])))
-    K_init = np.max(dati_x_stime_init) / np.max(ricircolo)
+#     ricircolo = GVfunction_ricircolo(np.concatenate((cost_peak1, [td_init, 1, tao_init])))
+#     K_init = np.max(dati_x_stime_init) / np.max(ricircolo)
 
-    p = np.array([td_init, K_init, tao_init])
+#     p = np.array([td_init, K_init, tao_init])
 
     
-    plt.figure()
-    plt.plot(time, data, 'ko', time, peak1, 'k-', time, GVfunction_ricircolo(np.concatenate((cost_peak1, p))), 'g-')
-    plt.title('Recirculation fit - initial values')
-    ub = (p * np.array([10, 10, 10]))
-    lb = p / np.array([10, 10, 10])
-    cycle = True
-    nCiclo = 0
-    print("-----")
-    print("This is lb", lb)
-    print("This is ub", ub)
-    while cycle:
-        nCiclo += 1
-        least_squares_output = least_squares(objFitGV_peak2, p, bounds=(lb, ub), args=(data_peak2, weights_peak2, cost_peak1))
+#     plt.figure()
+#     plt.plot(time, data, 'ko', time, peak1, 'k-', time, GVfunction_ricircolo(np.concatenate((cost_peak1, p))), 'g-')
+#     plt.title('Recirculation fit - initial values')
+
+#     cycle = True
+#     nCiclo = 0
+
+#     while cycle:
+#         ub = (p * np.array([10, 10, 10]))
+#         lb = p / np.array([10, 10, 10])
+#         nCiclo += 1
+#         least_squares_output = least_squares(objFitGV_peak2, p, bounds=(lb, ub), args=(data_peak2, weights_peak2, cost_peak1))
         
-        if (nCiclo >= 4):
-            cycle = False
+#         if (nCiclo >= 4):
+#             cycle = False
 
-    GVparameter = np.transpose(least_squares_output.x)
-    J = least_squares_output.jac + 0.0001
-    #Gives singular matrix without offset
-    covp = np.linalg.inv((J.T) @ (J))
-    var = np.diag(covp)
-    sd = np.sqrt(var)
-    cv_est_parGV = (sd / p * 100)
+#     GVparameter = np.transpose(least_squares_output.x)
+#     J = least_squares_output.jac
+#     #Gives singular matrix without offset
+#     covp = np.linalg.inv((J.T) @ (J))
+#     var = np.diag(covp)
+#     sd = np.sqrt(var)
+#     cv_est_parGV = (sd / p * 100)
 
-    plt.figure()
-    plt.plot(time, GVfunction_ricircolo(np.concatenate((cost_peak1, p))), 'r-')
-    plt.title('Recirculation final fit')
+#     plt.figure()
+#     plt.plot(time, GVfunction_ricircolo(np.concatenate((cost_peak1, p))), 'r-')
+#     plt.title('Recirculation final fit')
 
-    return GVparameter, cv_est_parGV
+#     return GVparameter, cv_est_parGV
     
-def objFitGV_peak2(p, data, weights, cost_peak1):
-    vector = GVfunction_ricircolo(np.concatenate((cost_peak1, p)))
-    out = (vector - data) / weights
-    return out
+# def objFitGV_peak2(p, data, weights, cost_peak1):
+#     vector = GVfunction_ricircolo(np.concatenate((cost_peak1, p)))
+#     out = (vector - data) / weights
+#     return out
 
-def GVfunction_ricircolo(p):
-    t0 = p[0]
-    alpha = p[1]
-    beta = p[2]
-    A = p[3]
-    td = p[4]
-    K = p[5]
-    tao = p[6]
-    td = 8
-    TE = 0.025; # 25ms
-    TR = 1.55;  # 1.55s
-    nT = 16
-    time = np.arange(0, nT * TR, TR)
-    Tmax = np.max(time)
-    Tmin = np.min(time)
-    TRfine = TR / 10
-    tGrid = np.arange(Tmin, 2 * Tmax + TRfine, TRfine)
-    nTfine = len(tGrid)
+# def GVfunction_ricircolo(p):
+#     t0 = p[0]
+#     alpha = p[1]
+#     beta = p[2]
+#     A = p[3]
+#     td = p[4]
+#     K = p[5]
+#     tao = p[6]
+#     TE = 0.025; # 25ms
+#     TR = 1.55;  # 1.55s
+#     nT = 16
+#     time = np.arange(0, nT * TR, TR)
+#     Tmax = np.max(time)
+#     Tmin = np.min(time)
+#     TRfine = TR / 10
+#     tGrid = np.arange(Tmin, 2 * Tmax + TRfine, TRfine)
+#     nTfine = len(tGrid)
     
 
-    peak2 = np.zeros(nTfine)
-    disp = np.zeros(nTfine)
+#     peak2 = np.zeros(nTfine)
+#     disp = np.zeros(nTfine)
 
-    for cont in range(nTfine):
-        t = tGrid[cont]
+#     for cont in range(nTfine):
+#         t = tGrid[cont]
 
-        if t > t0 + td:
-            peak2[cont] = K * ((t - t0 - td) ** alpha) * np.exp(-(t - t0 - td) / beta)
+#         if t > t0 + td:
+#             peak2[cont] = K * ((t - t0 - td) ** alpha) * np.exp(-(t - t0 - td) / beta)
 
-        disp[cont] = np.exp(-t / tao)
+#         disp[cont] = np.exp(-t / tao)
 
-    ricircolo_fine = TRfine * np.convolve(peak2, disp, mode='full')[:nTfine]
+#     ricircolo_fine = TRfine * np.convolve(peak2, disp, mode='full')[:nTfine]
 
-    ricircolo = np.interp(time, tGrid, ricircolo_fine)
+#     ricircolo = np.interp(time, tGrid, ricircolo_fine)
 
-    return ricircolo
+#     return ricircolo
 
-def GVfunction_peak2(p):
-    FP = GVfunction_peak1(p[:4])
-    ricircolo = GVfunction_ricircolo(p)
-    GV = FP + ricircolo
-    return GV
+# def GVfunction_peak2(p):
+#     FP = GVfunction_peak1(p[:4])
+#     ricircolo = GVfunction_ricircolo(p)
+#     GV = FP + ricircolo
+#     return GV
+
+# import numpy as np
+
+# def GVfunction(p):
+#     t0 = p[0]  # t0
+#     alpha = p[1]  # alpha
+#     beta = p[2]  # beta
+#     A = p[3]  # A
+#     td = p[4]  # td
+#     K = p[5]  # K
+#     tao = p[6]  # tao
+#     TR = 1.55;  # 1.55s
+#     nT = 16
+#     time = np.arange(0, nT * TR, TR)
+#     Tmax = np.max(time)
+#     nT = len(time)
+
+#     TRfine = TR / 10
+#     tGrid = np.arange(0, 2 * Tmax, TRfine)
+#     nTfine = len(tGrid)
+
+#     picco1 = np.zeros(nTfine)
+#     picco2 = np.zeros(nTfine)
+#     disp = np.zeros(nTfine)
+
+#     for cont in range(nTfine):
+#         t = tGrid[cont]
+
+#         if t > t0:
+#             picco1[cont] = A * ((t - t0) ** alpha) * np.exp(-(t - t0) / beta)
+
+#         if t > t0 + td:
+#             picco2[cont] = K * ((t - t0 - td) ** alpha) * np.exp(-(t - t0 - td) / beta)
+
+#         disp[cont] = np.exp(-t / tao)
+
+#     ricircolo = TRfine * np.convolve(picco2, disp, mode='full')[:nTfine]
+#     conc = picco1 + ricircolo
+
+#     GV = np.zeros(nT)
+#     for cont in range(nT):
+#         pos = np.argmin(np.abs(tGrid - time[cont]))
+#         GV[cont] = conc[pos]
+
+#         if np.abs(tGrid[pos] - time[cont]) > 1:
+#             print('WARNING: Poor approximation.')
+
+#     return GV
 
 
