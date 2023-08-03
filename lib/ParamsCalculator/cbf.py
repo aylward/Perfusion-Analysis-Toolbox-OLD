@@ -7,8 +7,8 @@ from scipy import signal
 import itk
 from builtins import object
 from scipy import linalg
-from ParamsCalculator.svd import DSC_mri_SVD
+from ParamsCalculator.svd import DSC_SVD
 
-def cal(conc, aif, mask, size):
-    cbf = DSC_mri_SVD(conc, aif['conc'], mask, size)
-    return cbf
+def cal(conc, aif, mask):
+    cbf, tmax = DSC_SVD(conc, aif['gv'], mask)
+    return cbf, tmax

@@ -1,7 +1,7 @@
 import numpy as np
 import os
 
-def DSC_mri_conc(volumes, mask):
+def DSC_conc(volumes, mask):
     S0map, bolus = DSC_ct_S0(volumes, mask)
     ind = np.where(S0map)
     conc = np.zeros(volumes.shape)
@@ -14,7 +14,7 @@ def DSC_mri_conc(volumes, mask):
     for t in range(nT):
         conc[ind[0], ind[1], ind[2], t] = volumes[ind[0], ind[1], ind[2], t] - S0map[ind[0], ind[1], ind[2]]
     
-    return np.real(conc)
+    return np.real(conc), bolus
 
 def DSC_ct_S0(volumes, mask):
     nSamplesMin = 0

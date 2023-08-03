@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.integrate import trapz
 import os
 import torch
 import logging
@@ -8,14 +7,15 @@ import itk
 from builtins import object
 from scipy import linalg
 
-def cal(mask, conc, size, aif, config, device):
+def cal(mask, conc, aif, config, device):
     kh = 1
     rho = 1
-    TR = 30
+    TR = 1.55
     nT = 16
     time = np.arange(0, nT * TR, TR)
-    cbv = np.zeros((size[0], size[1], size[2], size[3]))
-    for s in range(size[0]):
-          cbv[s, :, :, :] = (kh/ rho) * mask[s, :, :, :] * (trapz(conc[s, :, :, :], axis=1) / trapz((aif['time']), (aif['conc'])))
+    nS, nR, nC = mask.shape
+    cbv = np.zeros((nS, nR, nC))
+    for s in range(nS):
+          cbv[s, :, :] = (kh/ rho) * mask[s, :, :] * (np.trapz(conc[s, :, :, :], time, axis=2) / np.trapz(aif['gv'], time))
 
     return cbv
