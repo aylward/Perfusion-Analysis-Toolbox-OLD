@@ -1,28 +1,48 @@
 # Perfusion-Analysis-Toolbox
 Compute perfusion parameters for a 4D perfusion image using an Arterial Input Function extracted from vessel centerlines.
 
-## 1. Load Data and Set Parameters
+## Prerequisites
+
+- Git version control
+- Python 3.8 or later
+- `itk`, `tensorboardX`, and `nibabel` PyPI packages
+
+Run the following command in a shell prompt to install Python dependencies from the Python Package Index (PyPI):
+```sh
+python -m pip install itk tensorboardX nibabel
+```
+
+## Setup
+
+Follow these steps to run `Perfusion-Analysis-Toolbox` scripts on your local data:
+
+### 1. Clone the project to your PC
+```sh
+git clone git@github.com:KitwareMedical/Perfusion-Analysis-Toolbox.git
+```
+
+### 2. (Optional) Retrieve sample perfusion imaging data
+
+Sample data files are provided at [`data.kitware.com`](https://data.kitware.com/#folder/64da58971c6956f5031e433d).
+We recommend downloading [Perfusion-Image-Input-Data.zip](https://data.kitware.com/api/v1/item/64da58e11c6956f5031e4354/download)
+and extracting its contents into `Perfusion-Analysis-Toolbox/Data`.
+
+Alternatively, you may provide your own CT images for perfusion analysis.
+
+### 3. Load Data and Set Parameters
 1) Set correct parameters in src/config.py. 
 2) Set correct file paths in src/paths.py.
     1) FileName -> Input CTP image (4D)
     2) MaskName -> Mask (3D)
     3) VesselName -> Vessel Centerline Image (3D)
 
-## 2. Install Python Packages
-Install required packages:
-
-```
-pip install itk
-pip install tensorboardX
-pip install nibabel
-
-```
-## 3. Run Code
-```
+### 4. Run Code
+```sh
 cd path/to/this/folder/src
 python main.py
 ```
-## 4. View Results
+
+### 5. View Results
 1) CBV, CBF, CTC and MTT images are saved under the src folder.
 2) To view gamma variate fit for the chosen AIF, navigate to src and open high-res-aif.png.
 
