@@ -1,13 +1,4 @@
 import numpy as np
-import os
-import torch
-import logging
-from scipy import signal
-import itk
-from builtins import object
-from scipy import linalg
-from scipy.optimize import least_squares
-from scipy.signal import convolve
 from scipy.linalg import toeplitz
 
 
@@ -19,16 +10,17 @@ def DSC_SVD(conc, aif, mask):
     # - conc: 4D matrix containing DSC concentration time courses of all voxels.
     # - aif: Concentration time course in the chosen arterial site.
     # - mask: 3D matrix used to mask the brain volume for analysis.
-   
+
     # 1) Create matrix G
     nS, nR, nC, nT = conc.shape
     aifVector = np.zeros((nT, 1))
     aifVector[0] = aif[0]
-    aifVector[nT - 1] = aif[nT- 1]
-    TR = 1.55;  # 1.5
+    aifVector[nT - 1] = aif[nT - 1]
+    TR = 1.55
+    # 1.5
     nT = 16
-    time = np.arange(0, nT * TR, TR)
-    for k in range(1, nT-1):
+    np.arange(0, nT * TR, TR)
+    for k in range(1, nT - 1):
         aifVector[k] = (aif[k - 1] + 4 * aif[k] + aif[k + 1]) / 6
 
     aifVett = np.zeros(nT)
@@ -48,14 +40,14 @@ def DSC_SVD(conc, aif, mask):
 
     newEigen = np.zeros((eigenV).shape)
     for r in range(eigenV.shape[0]):
-      for c in range(eigenV.shape[1]):
-        if eigenV[r, c] >= threshold:
-            newEigen[r, c] = 1 / eigenV[r, c]
+        for c in range(eigenV.shape[1]):
+            if eigenV[r, c] >= threshold:
+                newEigen[r, c] = 1 / eigenV[r, c]
 
     Ginv = V.T @ np.diag(newEigen) @ U.T
     res_svd_residual = np.zeros((nS, nR, nC, nT))
     # 3) Apply Ginv to calculate the residual function and CBF for each voxel
-    res_svd_map = np.zeros((nS, nR, nC))    
+    res_svd_map = np.zeros((nS, nR, nC))
     for s in range(nS):
         for r in range(nR):
             for c in range(nC):
@@ -74,6 +66,3 @@ def DSC_SVD(conc, aif, mask):
                 tmax_svd[s, r, c] = argmax
 
     return res_svd_map, tmax_svd
-
-
-
