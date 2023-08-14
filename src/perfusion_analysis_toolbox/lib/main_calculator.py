@@ -1,5 +1,11 @@
+#!/usr/bin/env python3
+
+import argparse
 import logging
+
 import itk
+import numpy.typing as npt
+import torch
 
 import utils
 import ParamsCalculator.ctc as ctc
@@ -10,34 +16,34 @@ import ParamsCalculator.mtt as mtt
 
 
 class MainCalculator:
-    """Main calculator.
-    Args:
-    raw_perf: numpy array or torch tensor of size (slice, row, column, time)
-    save_path: path/to/save/folder
-    device: device currently working on
-    logger: info logger
-    """
+    """Main calculator."""
 
     def __init__(
         self,
-        raw_perf,
-        mask,
-        vessels,
-        origin,
-        spacing,
-        direction,
-        config,
-        save_path,
-        device,
-        logger=None,
+        raw_perf: npt.ArrayLike,
+        mask: npt.ArrayLike,
+        vessels: npt.ArrayLike,
+        origin: itk.Point,
+        spacing: itk.Vector,
+        direction: itk.Matrix,
+        config: argparse.Namespace,
+        save_path: str,
+        device: torch.device,
+        logger: logging.Logger = None,
     ):
-        if logger is None:
-            self.logger = utils.get_logger(
-                "MainCalculator", level=logging.DEBUG
+        if raw_perf.ndim != 4:
+            raise ValueError(
+                "Expected input numpy array or torch tensor"
+                "of size (slice, row, column, time)"
             )
-        else:
-            self.logger = logger
+
+        self.logger = (
+            logger
+            if logger
+            else utils.get_logger("MainCalculator", level=logging.DEBUG)
+        )
         self.logger.info(f"Sending the raw perfusion image to '{device}'")
+
         self.raw_perf = raw_perf.astype(int)
         self.spacing = spacing
         self.config = config
@@ -76,11 +82,12 @@ class MainCalculator:
         CBV = cbv.cal(temp_mask2, CTC, AIF, self.config, self.device)
         CBF, TMAX = cbf.cal(CTC, AIF, temp_mask3)
         MTT = mtt.cal(CBV, CBF, temp_mask4)
-        mtt_img = itk.image_from_array(MTT)
-        itk.imwrite(mtt_img, "mtt.nii")
-        cbv_img = itk.image_from_array(CBV)
-        itk.imwrite(cbv_img, "cbv.nii")
-        cbf_img = itk.image_from_array(CBF)
-        itk.imwrite(cbf_img, "cbf.nii")
-        ctc_img = itk.image_from_array(CTC)
-        itk.imwrite(ctc_img, "ctc.nii")
+
+        mtt_img = itk.image_view_from_array(MTT)
+        itk.imwrite(mtt_img, f"{self.savepath}/mtt.nii.gz")
+        cbv_img = itk.image_view_from_array(CBV)
+        itk.imwrite(cbv_img, f"{self.savepath}/cbv.nii.gz")
+        cbf_img = itk.image_view_from_array(CBF)
+        itk.imwrite(cbf_img, f"{self.savepath}/cbf.nii.gz")
+        ctc_img = itk.image_view_from_array(CTC)
+        itk.imwrite(ctc_img, f"{self.savepath}/ctc.nii.gz")

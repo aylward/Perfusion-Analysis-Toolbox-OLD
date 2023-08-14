@@ -1,9 +1,24 @@
+#!/usr/bin/env python3
+
 import numpy as np
+import numpy.typing as npt
 import itk
 
 
-def read_signal(FileName, MaskName, VesselName, ToTensor=True):
-    return read_ctp(FileName, MaskName, VesselName, ToTensor)
+def read_signal(
+    FileName: str, MaskName: str, VesselName: str
+) -> tuple[
+    npt.ArrayLike,
+    npt.ArrayLike,
+    npt.ArrayLike,
+    itk.Point,
+    itk.Vector,
+    itk.Matrix,
+]:
+    """
+    Load computed tomography perfusion (CTP) image input from disk.
+    """
+    return read_ctp(FileName, MaskName, VesselName)
 
 
 def read_ctp(FileName, MaskName, VesselName, ToTensor=True):

@@ -1,12 +1,13 @@
+#!/usr/bin/env python3
+
+"""
+Helper utility to parse input parameters for a given run.
+"""
+
 import argparse
 
 
-class Config:
-    def __init__(self, **entries):
-        self.__dict__.update(entries)
-
-
-def parse_config():
+def parse_config() -> argparse.Namespace:
     """
     Parse command line arguments to configure the run.
     """
