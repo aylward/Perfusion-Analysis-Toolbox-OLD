@@ -1,7 +1,7 @@
 import os, time
 import torch
 import numpy as np
-import SimpleITK as sitk
+import itk
 import torch.optim as optim
 
 import site
@@ -18,26 +18,22 @@ def datestr():
     return '{:04}{:02}{:02}_{:02}{:02}'.format(now.tm_year, now.tm_mon, now.tm_mday, now.tm_hour, now.tm_min)
 print(datestr())
 
-
 def main():
 
-    logger = get_logger("Perfusion Parameters Calculation")
     config = parse_config()
-    logger.info(config)
     
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
 
+    
     # Read and preprocess (brain-region extraction, low-pass filtering) raw signal (size: (slice, row, column, time))
-    # For MRP, convert raw signal <= 0 to = 1
-    RawPerfImg, origin, spacing, direction = \
-        read_signal(paths.FileName, config.image_type, ToTensor = config.to_tensor, Mask = config.mask) 
-
-    # Calculate perfusino parameters
-    calculator = MainCalculator(RawPerfImg, origin, spacing, direction, config, paths.SaveFolder, device)
+    RawPerfImg, mask, vessels, origin, spacing, direction = \
+        read_signal(paths.FileName, paths.MaskName, paths.VesselName, ToTensor = config.to_tensor) 
+    # Calculate perfusion parameters
+    calculator = MainCalculator(RawPerfImg, mask, vessels, origin, spacing, direction, config, paths.SaveFolder, device)
     calculator.run()
-
 
 ########################################################################################################################
 
 if __name__ == '__main__':
     main()
+

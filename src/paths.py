@@ -1,10 +1,8 @@
 import os
 
-# Path to file
-
-#FileName = '/home/peirong/Documents/Stroke/ISLES/Data_2017/ISLES2017_Raw/ISLES2017_Training/training_1/VSD.Brain.XX.O.MR_4DPWI.127015/VSD.Brain.XX.O.MR_4DPWI.127015.nii'
-#SaveFolder = '/home/peirong/Documents/Stroke/ISLES/Data_2017/ISLES2017_Raw/ISLES2017_Training/training_1/VSD.Brain.XX.O.MR_4DPWI.127015'
-
-FileName = '/home/peirong/Documents/Stroke/StrokeData/KitwareData/2019-StrokeCollaterals/2019-ForUse/CTAT-001 (CT-CTA-CTP)/CTPerfusion.nii'
-SaveFolder = '/home/peirong/Documents/Stroke/StrokeData/KitwareData/2019-StrokeCollaterals/2019-ForUse/CTAT-001 (CT-CTA-CTP)'
-
+#MaskName = '/home/local/KHQ/aria.vikram/src/Perfusion-Analysis-Toolbox/Data/CTP04_ct_brain_mask_15x15x5.nii'
+#FileName = '/home/local/KHQ/aria.vikram/src/Perfusion-Analysis-Toolbox/Data/CTP04-4D_reg_15x15x5.nii'
+MaskName = '/home/local/KHQ/aria.vikram/src/Perfusion-Analysis-Toolbox/Data/CTP04_ct_brain_mask.nii'
+FileName = '/home/local/KHQ/aria.vikram/src/Perfusion-Analysis-Toolbox/Data/CTP04-4D_reg.nii'
+SaveFolder = '/home/local/KHQ/aria.vikram/src/Perfusion-Analysis-Toolbox/Data'
+VesselName = '/home/local/KHQ/aria.vikram/src/Perfusion-Analysis-Toolbox/Data/vesscenterlines.mha'
