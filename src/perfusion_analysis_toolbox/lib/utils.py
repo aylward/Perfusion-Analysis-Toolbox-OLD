@@ -20,6 +20,10 @@ def get_logger(name, level = logging.INFO):
 
     return logger
 
+def datestr():
+    now = time.localtime()
+    return '{:04}{:02}{:02}_{:02}{:02}'.format(now.tm_year, now.tm_mon, now.tm_mday, now.tm_hour, now.tm_min)
+
 
 def get_n_learnable_parameters(model):
 
