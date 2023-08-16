@@ -4,7 +4,16 @@ import matplotlib.pyplot as plt
 
 
 def DSC_aif(mask, conc, bolus, size, config, device, vessels):
-    nSlice = 69
+    # TODO
+    # A fixed "z" index is selected for slicing the low-resolution sample input data.
+    # For high-resolution sample data a fixed index of slice "69" should be used.
+    # More investigation is necessary to select a z-slice for an arbitrary input volume.
+    nSlice = 7
+    print(
+        f"Warning: slicing along selected Z index {nSlice}"
+        "for low resolution input volume."
+    )
+
     conc_reshaped = conc[nSlice - 1, :, :, :]
     aif = extract_AIF(
         conc_reshaped,
@@ -104,6 +113,8 @@ def extract_AIF(AIFslice, mask, vesselSlice, bolusSlice):
     for t in range(0, nT):
         data2D[:, t] = AIFslice[ind[0], ind[1], t]
     maskAIF = ROI
+    if not np.any(maskAIF):
+        raise ValueError("Received AIF mask of all background values")
 
     AIFconc = np.zeros((nT))
     fit_Params = np.zeros((nR, nC, 4))
