@@ -29,7 +29,6 @@ def main():
         config.image_path,
         config.mask_path,
         config.vessel_path,
-        ToTensor=config.to_tensor,
     )
 
     # Calculate perfusion parameters

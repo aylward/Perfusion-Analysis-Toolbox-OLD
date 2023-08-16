@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -7,7 +8,7 @@ import itk
 
 def read_signal(
     FileName: str, MaskName: str, VesselName: str
-) -> tuple[
+) -> Tuple[
     npt.ArrayLike,
     npt.ArrayLike,
     npt.ArrayLike,
