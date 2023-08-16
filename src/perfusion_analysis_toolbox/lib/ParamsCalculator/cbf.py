@@ -1,4 +1,4 @@
-from ParamsCalculator.svd import DSC_SVD
+from .svd import DSC_SVD
 
 
 def cal(conc, aif, mask):

@@ -7,12 +7,12 @@ import itk
 import numpy.typing as npt
 import torch
 
-import utils
-import ParamsCalculator.ctc as ctc
-import ParamsCalculator.cbv as cbv
-import ParamsCalculator.cbf as cbf
-import ParamsCalculator.aif as aif
-import ParamsCalculator.mtt as mtt
+from . import utils
+from .ParamsCalculator import ctc as ctc
+from .ParamsCalculator import cbv as cbv
+from .ParamsCalculator import cbf as cbf
+from .ParamsCalculator import aif as aif
+from .ParamsCalculator import mtt as mtt
 
 
 class MainCalculator:
