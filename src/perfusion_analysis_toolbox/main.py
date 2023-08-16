@@ -6,10 +6,10 @@ Command line utility to compute perfusion parameters over a given CT input image
 
 import torch
 
-from lib.utils import datestr
-from lib.signal_reader import read_signal
-from lib.main_calculator import MainCalculator
-from config import parse_config
+from .lib.utils import datestr
+from .lib.signal_reader import read_signal
+from .lib.main_calculator import MainCalculator
+from .config import parse_config
 
 
 def main():
