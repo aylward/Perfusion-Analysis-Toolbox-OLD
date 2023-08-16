@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "perfusion-analysis-toolbox"
+description = "Tools for computing perfusion parameters over CT images"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3"
+]
+dynamic = ["version", "readme"]
+
+dependencies = [
+  'itk',
+  'matplotlib',
+  'numpy',
+  'scipy',
+  'tensorboardX',
+  'torch',
+]
+
+[project.scripts]
+
+perfusion-compute-cli = "perfusion_analysis_toolbox.main:main"
+
+[project.optional-dependencies]
+
+develop = [
+  'black',
+  'pytest'
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "perfusion_analysis_toolbox.__version__"}
+readme = {file = ["README.md"]}
+
+[tool.black]
+line-length = 79
+target_version = ['py38']
+exclude = '''
+
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | build
+    | dist
+  )/
+  | .gitignore
+)
+'''

@@ -1,34 +1,46 @@
+#!/usr/bin/env python3
+
 import os
 import sys
+import time
 import torch
 import shutil
 import logging
 import numpy as np
 
 
-def get_logger(name, level = logging.INFO):
-
+def get_logger(name, level=logging.INFO):
     logger = logging.getLogger(name)
     logger.setLevel(level)
 
     # Logging to console
     stream_handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter('%(asctime)s [%(threadName)s] %(levelname)s %(name)s - %(message)s')
+    formatter = logging.Formatter(
+        "%(asctime)s [%(threadName)s] %(levelname)s %(name)s - %(message)s"
+    )
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
     return logger
 
 
-def get_n_learnable_parameters(model):
+def datestr():
+    now = time.localtime()
+    return "{:04}{:02}{:02}_{:02}{:02}".format(
+        now.tm_year, now.tm_mon, now.tm_mday, now.tm_hour, now.tm_min
+    )
 
+
+def get_n_learnable_parameters(model):
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
 
     return sum([np.prod(p.size()) for p in model_parameters])
 
 
 def save_checkpoint(state, is_best, checkpoint_dir, logger=None):
-    """Saves model and training parameters at '{checkpoint_dir}/last_checkpoint.pytorch'.
+    """
+    Saves model and training parameters at '{checkpoint_dir}/last_checkpoint.pytorch'.
+
     If is_best==True saves '{checkpoint_dir}/best_checkpoint.pytorch' as well.
 
     Args:
@@ -44,34 +56,38 @@ def save_checkpoint(state, is_best, checkpoint_dir, logger=None):
 
     if not os.path.exists(checkpoint_dir):
         log_info(
-            f"Checkpoint directory does not exists. Creating {checkpoint_dir}")
+            f"Checkpoint directory does not exists. Creating {checkpoint_dir}"
+        )
         os.mkdir(checkpoint_dir)
 
-    last_file_path = os.path.join(checkpoint_dir, 'last_checkpoint.pytorch')
+    last_file_path = os.path.join(checkpoint_dir, "last_checkpoint.pytorch")
     log_info(f"Saving last checkpoint to '{last_file_path}'")
     torch.save(state, last_file_path)
     if is_best:
-        best_file_path = os.path.join(checkpoint_dir, 'best_checkpoint.pytorch')
+        best_file_path = os.path.join(
+            checkpoint_dir, "best_checkpoint.pytorch"
+        )
         log_info(f"Saving best checkpoint to '{best_file_path}'")
         shutil.copyfile(last_file_path, best_file_path)
 
 
-def cutoff_percentile(image, mask = None, percentile_lower = 0.2, percentile_upper = 99.8):
-	
-	if mask is None:
-		mask = image != image[0, 0, 0]
-	cut_off_lower = np.percentile(image[mask != 0].ravel(), percentile_lower)
-	cut_off_upper = np.percentile(image[mask != 0].ravel(), percentile_upper)
-	print('Clip within [%.3f, %.3f]' % (cut_off_lower, cut_off_upper))
+def cutoff_percentile(
+    image, mask=None, percentile_lower=0.2, percentile_upper=99.8
+):
+    if mask is None:
+        mask = image != image[0, 0, 0]
+    cut_off_lower = np.percentile(image[mask != 0].ravel(), percentile_lower)
+    cut_off_upper = np.percentile(image[mask != 0].ravel(), percentile_upper)
+    print("Clip within [%.3f, %.3f]" % (cut_off_lower, cut_off_upper))
 
-	res = np.copy(image)
-	res[(res < cut_off_lower) & (mask != 0)] = cut_off_lower
-	res[(res > cut_off_upper) & (mask != 0)] = cut_off_upper
+    res = np.copy(image)
+    res[(res < cut_off_lower) & (mask != 0)] = cut_off_lower
+    res[(res > cut_off_upper) & (mask != 0)] = cut_off_upper
 
-	return res
+    return res
 
 
-def load_checkpoint(checkpoint_path, model, optimizer = None):
+def load_checkpoint(checkpoint_path, model, optimizer=None):
     """Loads model and training parameters from a given checkpoint_path
     If optimizer is provided, loads optimizer's state_dict of as well.
 
@@ -86,11 +102,11 @@ def load_checkpoint(checkpoint_path, model, optimizer = None):
     if not os.path.exists(checkpoint_path):
         raise IOError(f"Checkpoint '{checkpoint_path}' does not exist")
 
-    device = torch.device('cpu')
-    state = torch.load(checkpoint_path, map_location = device)
-    model.load_state_dict(state['model_state_dict'])
+    device = torch.device("cpu")
+    state = torch.load(checkpoint_path, map_location=device)
+    model.load_state_dict(state["model_state_dict"])
 
     if optimizer is not None:
-        optimizer.load_state_dict(state['optimizer_state_dict'])
+        optimizer.load_state_dict(state["optimizer_state_dict"])
 
     return state
