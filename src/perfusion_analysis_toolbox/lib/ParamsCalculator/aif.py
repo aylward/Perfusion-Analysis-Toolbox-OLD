@@ -3,15 +3,15 @@ from scipy.optimize import least_squares
 import matplotlib.pyplot as plt
 
 
-def DSC_aif(mask, conc, bolus, size, config, device, vessels):
+def DSC_aif(mask, conc, bolus, size, config, device, vessels, savepath):
     # TODO
     # A fixed "z" index is selected for slicing the low-resolution sample input data.
     # For high-resolution sample data a fixed index of slice "69" should be used.
     # More investigation is necessary to select a z-slice for an arbitrary input volume.
     nSlice = 7
     print(
-        f"Warning: slicing along selected Z index {nSlice}"
-        "for low resolution input volume."
+        f"Warning: Using the default Z_slice={nSlice} for AIF localization,"
+        " since this is a low resolution input volume."
     )
 
     conc_reshaped = conc[nSlice - 1, :, :, :]
@@ -20,11 +20,12 @@ def DSC_aif(mask, conc, bolus, size, config, device, vessels):
         mask[nSlice - 1, :, :],
         vessels[nSlice - 1, :, :],
         bolus[nSlice - 1],
+        savepath,
     )
     return aif
 
 
-def extract_AIF(AIFslice, mask, vesselSlice, bolusSlice):
+def extract_AIF(AIFslice, mask, vesselSlice, bolusSlice, savepath):
     # Preparation of accessory variables and parameters
     semiaxisMag = 0.2500
     semiaxisMin = 0.1000
@@ -210,7 +211,7 @@ def extract_AIF(AIFslice, mask, vesselSlice, bolusSlice):
     plt.legend(["AIF samples", "GV function"])
     plt.title("AIF", fontsize=12)
     plt.xlim(time[0], time[-1])
-    plt.savefig("high-res-aif.png")
+    plt.savefig(f"{savepath}/high-res-aif.png")
     print("This is AIF fit:", AIF_fit)
     return AIF_fit
 

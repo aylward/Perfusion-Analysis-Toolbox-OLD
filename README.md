@@ -23,11 +23,20 @@ python -m pip install path/to/Perfusion-Analysis-Toolbox
 
 ### 3. (Optional) Retrieve sample perfusion imaging data
 
-Sample data files are provided at [`data.kitware.com`](https://data.kitware.com/#folder/64da58971c6956f5031e433d).
-We recommend downloading [Perfusion-Image-Input-Data.zip](https://data.kitware.com/api/v1/item/64da58e11c6956f5031e4354/download)
-and extracting its contents into `Perfusion-Analysis-Toolbox/Data`.
+Sample data files are provided at [`data.kitware.com`](https://data.kitware.com/#collection/661410cf2357cf6b55ca8bda).
 
-Alternatively, you may provide your own CT images for perfusion analysis.
+We recommend downloading that data into the directory
+```
+Perfusion-Analysis-Toolbox/Data
+```
+
+In the Data directory, you can run the provided data-download.sh script to download the testing / demonstration data:
+```sh
+pip install girder-client
+./data-download.sh
+```
+
+Alternatively, you may provide your own 4D_CTP, 3D_CT_BrainMask, and 3D_CT_VesselCenterlinesMask images for perfusion analysis.
 
 ### 4. Run the Command Line Application
 
@@ -38,6 +47,13 @@ or
 
 ```sh
 python -m perfusion-compute-cli --image-path <path/to/4D-CT-Perfusion-Image> --mask-path <path/to/3D-Mask-Image> --vessel-path <path/to/3D-Vessel-Centerline-Image> --save-path <path/to/save-directory>
+```
+
+To run the sample data, once it has been downloaded (see above), type
+
+```sh
+mkdir Results
+perfusion-compute-cli --image-path ./Data/CTP04_4DCTP_Registered_15x15x5.nii.gz --mask-path ./Data/CTP04_CT_BrainMask_15x15x5.nii.gz --vessel-path ./Data/CTP04_CT_VesselCenterlinesMask_15x15x5.nii.gz --save-path Results
 ```
 
 ### 5. View Results

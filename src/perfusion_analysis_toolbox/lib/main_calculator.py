@@ -78,6 +78,7 @@ class MainCalculator:
             self.config,
             self.device,
             vessels,
+            self.savepath
         )
         CBV = cbv.cal(temp_mask2, CTC, AIF, self.config, self.device)
         CBF, TMAX = cbf.cal(CTC, AIF, temp_mask3)

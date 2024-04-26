@@ -1,5 +1,7 @@
 *__pycache__*
-
-Data/
 build/
 *egg-info*
+*~
+*.swp
+venv*
+Results*
